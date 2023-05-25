@@ -241,6 +241,7 @@ Type objective_function<Type>::operator() ()
   // REPORT(L);
   REPORT(mu_at);
   ADREPORT(ln_Y_at); 
+  REPORT(WAA_re_model);
 
   return(jnLL);
   
