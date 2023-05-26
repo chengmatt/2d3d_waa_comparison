@@ -172,7 +172,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(ln_Y_at); // Random Effects Weight-at-age array
   
   // Define joint negative likelihood here
-  Type jnLL = 0;
+  Type nLL_obs = 0;
+  Type nLL_gmrf = 0;
 
   // LIKELIHOOD SECTION ------------------------
   array<Type> mu_at(ln_Y_at.rows(), ln_Y_at.cols()); // Mean weight at age across time
@@ -196,7 +197,7 @@ Type objective_function<Type>::operator() ()
   for(int a = 0; a < X_at.rows(); a++) {
   for(int t = 0; t < X_at.cols(); t++) {
     if( !isNA(X_at(a,t)) ){
-      jnLL -= dnorm(ln_Y_at(a,t), log(X_at(a,t)), Xsd_at(a,t), true);
+      nLL_obs -= dnorm(ln_Y_at(a,t), log(X_at(a,t)), Xsd_at(a,t), true);
     } // if we are not doing projections
   } // t loop
 } // a loop
@@ -215,7 +216,7 @@ Type objective_function<Type>::operator() ()
     // Evaluate GMRF with precision matrix estimating cohort, year, and age correlations
     array<Type> eps_at(ln_Y_at.rows(), ln_Y_at.cols()); // array of process errors
     eps_at = ln_Y_at - log(mu_at); // process errors relative to the mean across age and time
-    jnLL += GMRF(Q_sparse)(eps_at); 
+    nLL_gmrf += GMRF(Q_sparse)(eps_at); 
     
   } // if we want a 3d gmrf
   
@@ -228,9 +229,12 @@ Type objective_function<Type>::operator() ()
     
     // Get sigma for 2dar1
     Type Sigma = pow(exp(log_sigma2) / ((1-pow(rho_y,2))*(1-pow(rho_a,2))),0.5);
-    jnLL += SCALE(SEPARABLE(AR1(rho_a),AR1(rho_y)), Sigma)(eps_at); 
+    nLL_gmrf += SCALE(SEPARABLE(AR1(rho_a),AR1(rho_y)), Sigma)(eps_at); 
     
   } // if we want a 2dar1
+  
+  // Add likelihood components
+  Type jnLL = nLL_obs + nLL_gmrf;
 
   // REPORT SECTION ------------------------
   REPORT(jnLL);
@@ -242,6 +246,8 @@ Type objective_function<Type>::operator() ()
   REPORT(mu_at);
   ADREPORT(ln_Y_at); 
   REPORT(WAA_re_model);
+  REPORT(nLL_obs);
+  REPORT(nLL_gmrf)
 
   return(jnLL);
   

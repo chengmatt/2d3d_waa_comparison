@@ -28,13 +28,22 @@ load(here("output", "2d3d_models.RData")) # obj is called models
 # Load in WAA matrix (only use fishery data)
 waa_df <- read.csv(here("data", "ebs_waa.csv")) %>% 
   filter(source == "fishery") %>% 
-  dplyr::select(-source)
+  dplyr::select(-source) %>% 
+  pivot_longer(!year, names_to = "ages", values_to = "WAA") %>% 
+  mutate(ages = as.numeric(str_remove(ages, "V")) + 2)
 
 # Load in std for WAA matrix
 waa_std_df <- read.csv(here("data", "ebs_waa_std.csv")) %>% 
   filter(source == "fishery") %>% 
-  dplyr::select(-source)
+  dplyr::select(-source)  %>% 
+  pivot_longer(!year, names_to = "ages", values_to = "std") %>% 
+  mutate(ages = as.numeric(str_remove(ages, "V")) + 2)
 
+# get 95% ci with sd
+waa_df <- waa_df %>% 
+  left_join(waa_std_df, by = c("year", "ages")) %>% 
+  mutate(lwr_95 = WAA - (1.96 * std),
+         upr_95 = WAA + (1.96 * std))
 
 # Get WAA Values ----------------------------------------------------------
 
@@ -85,10 +94,13 @@ for(model in 1:length(models)) {
 } # end model loop
 
 # Plot lines
-ggplot(WAA_re_df_all %>% filter(yrs <= 2022),
+ggplot(WAA_re_df_all %>% filter(yrs <= 2021),
        aes(x = factor(yrs), y = vals, color = factor(model), group = factor(model))) +
   geom_line(alpha = 0.75, size = 1.6) +
   scale_x_discrete(breaks = seq(1990, 2020, 5)) +
+  geom_pointrange(waa_df, mapping = aes(x = factor(year), y = WAA,
+                                        ymin = lwr_95, ymax = upr_95),
+                  col = "black", alpha = 0.5) +
   theme_bw() +
   facet_wrap(~ages, ncol = 4, scales = "free") +
   labs(x = "Year", y = "Weight", color = "Ages") +
@@ -106,9 +118,29 @@ ggplot(WAA_re_df_all %>% filter(yrs <= 2022),
 AIC_df <- data.frame(AIC = NA, model = model_names)
 for(i in 1:length(models)) AIC_df$AIC[i] <- margAIC(models[[i]]$optim)
 
+models[[1]]$optim$objective
+models[[2]]$optim$objective
+models[[3]]$optim$objective
+
 
 # Compare parameters ----------------------------------------------------
 
+# Parameter report
 models[[1]]$sd_rep
 models[[2]]$sd_rep
 models[[3]]$sd_rep
+
+# jnLL
+models[[1]]$rep$jnLL
+models[[2]]$rep$jnLL
+models[[3]]$rep$jnLL
+
+# Observation nLL
+models[[1]]$rep$nLL_obs
+models[[2]]$rep$nLL_obs
+models[[3]]$rep$nLL_obs
+
+# GMRF nLL
+models[[1]]$rep$nLL_gmrf
+models[[2]]$rep$nLL_gmrf
+models[[3]]$rep$nLL_gmrf
