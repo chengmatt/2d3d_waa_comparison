@@ -10,6 +10,11 @@ bool isNA(Type x){
   return R_IsNA(asDouble(x));
 }
 
+// Transformation to ensure correlation is between -1 and 1
+template <class Type>
+Type rho_trans(Type x){return Type(2)/(Type(1) + exp(-Type(2) * x)) - Type(1);
+  }
+
 // Function to assemble sparse precision matrix
 template<class Type>
 // @description: Function that constructs a precision matrix, separable along the
@@ -158,6 +163,7 @@ Type objective_function<Type>::operator() ()
   DATA_INTEGER(Var_Param); // Variance parameterization of Precision Matrix
   // == 0 (Conditional), == 1(Marginal)
   DATA_INTEGER(WAA_re_model); // WAA re model == 0 (3D gmrf), == 1 (2dar1)
+  DATA_INTEGER(rho_gmrf_constrain); // Whether or not to constrain gmrf rho == 0 (partial corr); == 1 (constrain to -1 and 1)
   
   // PARAMETER SECTION ----------------------------------------
   PARAMETER(rho_a); // Partial correlation by age
@@ -209,16 +215,26 @@ Type objective_function<Type>::operator() ()
     Eigen::SparseMatrix<Type> Q_sparse(total_n, total_n); // Precision matrix
     
     // Construct precision matrix here
-    Q_sparse = construct_Q(n_years, n_ages, ay_Index, 
-                           rho_y, rho_a, rho_c, 
-                           log_sigma2, Var_Param);
+    if(rho_gmrf_constrain == 0) { // Partial correaltions - no constraint
+      Q_sparse = construct_Q(n_years, n_ages, ay_Index, 
+                             rho_y, rho_a, rho_c, 
+                             log_sigma2, Var_Param);
+    } else{ // If we want to constrain rho parameters between -1 and 1
+      Q_sparse = construct_Q(n_years, n_ages, ay_Index, 
+                             rho_trans(rho_y),
+                             rho_trans(rho_a), 
+                             rho_trans(rho_c), 
+                             log_sigma2, Var_Param);
+    } // end else
     
     // Evaluate GMRF with precision matrix estimating cohort, year, and age correlations
     array<Type> eps_at(ln_Y_at.rows(), ln_Y_at.cols()); // array of process errors
     eps_at = ln_Y_at - log(mu_at); // process errors relative to the mean across age and time
     nLL_gmrf += GMRF(Q_sparse)(eps_at); 
     
-  } // if we want a 3d gmrf
+    REPORT(Q_sparse);
+    
+  } // if we want a gmrf
   
   // 2dar1
   if(WAA_re_model == 1) {
@@ -228,8 +244,11 @@ Type objective_function<Type>::operator() ()
     eps_at = ln_Y_at - log(mu_at); // process errors relative to the mean across age and time
     
     // Get sigma for 2dar1
-    Type Sigma = pow(exp(log_sigma2) / ((1-pow(rho_y,2))*(1-pow(rho_a,2))),0.5);
-    nLL_gmrf += SCALE(SEPARABLE(AR1(rho_a),AR1(rho_y)), Sigma)(eps_at); 
+    Type trans_rho_y = rho_trans(rho_y);
+    Type trans_rho_a = rho_trans(rho_a);
+    
+    Type Sigma = pow(exp(log_sigma2) / ((1-pow(trans_rho_y,2))*(1-pow(trans_rho_a,2))),0.5);
+    nLL_gmrf += SCALE(SEPARABLE(AR1(trans_rho_a),AR1(trans_rho_y)), Sigma)(eps_at); 
     
   } // if we want a 2dar1
   
@@ -238,7 +257,6 @@ Type objective_function<Type>::operator() ()
 
   // REPORT SECTION ------------------------
   REPORT(jnLL);
-  // REPORT(Q_sparse);
   // REPORT(I);
   // REPORT(B);
   // REPORT(Omega);
