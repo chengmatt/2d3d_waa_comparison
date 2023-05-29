@@ -13,8 +13,7 @@ source(here("R", "helper.R"))
 # List files in examples folder for species
 species <- list.files(here("examples"))[-c(2, 4:6, 8:11)]
 
-# EBS pollock -------------------------------------------------------------
-
+# Loop through
 for(i in 1:length(species)) {
   
   # read data file
@@ -42,3 +41,26 @@ for(i in 1:length(species)) {
   write.csv(df_bth_std, here("data", paste(species[i], "waa_std.csv", sep = "_")))
   
 } # end i
+
+# Do GOA pollock but from example .RData files from AKWHAM repo
+load(here("examples", "input.RData"))
+load(here("examples", "cv_survey.RData"))
+
+# Get WAA values
+X_at = input$data$waa[2,,]
+X_at = reshape2::melt(X_at)
+colnames(X_at) = c("year", "ages", "values")
+X_at = X_at %>% pivot_wider(names_from = "ages", values_from = "values" ) %>% 
+  mutate(source = "fishery") # not really fishery. data (survey data), but using to keep consistency in model runs
+write.csv(X_at, here("data", paste("goapollock", "waa.csv", sep = "_")))
+
+# Get WAA CV values
+cvsurvey = as.matrix(out_data)
+cvsurvey[is.na(cvsurvey)] = 0
+waa_cv = array(0, dim = dim(X_at[,-1]))
+waa_cv[] = cvsurvey
+waa_cv = reshape2::melt(waa_cv)
+colnames(waa_cv) = c("year", "ages", "values")
+waa_cv = waa_cv %>% pivot_wider(names_from = "ages", values_from = "values" ) %>% 
+  mutate(source = "fishery")
+write.csv(waa_cv, here("data", paste("goapollock", "waa_std.csv", sep = "_")))

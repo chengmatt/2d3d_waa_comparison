@@ -17,12 +17,12 @@ compile("2d3d_comparison.cpp")
 dyn.load(dynlib("2d3d_comparison"))
 
 # list species 
-species_name <- c("atkamack", "ebspollock", "hake")
+species_name <- c("atkamack", "ebspollock", "hake", "goapollock")
 n_species <- length(species_name)
 
 # Specify options here
 # Number of projection years
-n_proj_years <- 3
+n_proj_years <- 0
 # Define number of extra newton steps we want to take
 n.newton <- 3
 
@@ -71,14 +71,16 @@ X_at <- t(as.matrix(waa_df[,-1])) # removing first col (year column)
 # Create projection columns (append to X_at matrix)
 proj_cols <- matrix(NA, nrow = length(ages), ncol = n_proj_years) 
 
-# Append NA for projection year
-X_at <- cbind(X_at, proj_cols) 
 # Read in standard deviations for weight at age matrix
-Xse_at <- t(as.matrix(waa_std_df[,c(-1)])) # removing first col (year column) 
-# Convert to CV
+Xse_at <- t(as.matrix(waa_std_df[,c(-1)])) # removing first col (year column)
+# # Convert to CV
 Xcv_at <- sqrt( (exp(Xse_at^2) - 1) )
-# Now convert back to sd in lognormal space
+# # Now convert back to sd in lognormal space
 Xsd_at <- sqrt((log((Xcv_at)^2 + 1))/(log(10)^2))
+if(species_name[species] == "goapollock") Xsd_at <- sqrt(log(Xse_at^2 + 1))
+
+# Append NA for projection year
+X_at <- cbind(X_at, proj_cols)
 
 # Create an index for ages and years to feed into TMB, which helps construct the precision matrix
 ay_Index <- as.matrix(expand.grid("age" = seq_len(length(ages)), 
@@ -87,8 +89,8 @@ ay_Index <- as.matrix(expand.grid("age" = seq_len(length(ages)),
 # Parameters for TMB model --------------------------------------------------------
 
 # Input parameters into a list
-parameters <- list( rho_y = 0.5,
-                    rho_a = 0.5,
+parameters <- list( rho_y = 0,
+                    rho_a = 0,
                     rho_c = 0,
                     log_sigma2 = log(0.1),
                     ln_L0 = log(45),
@@ -142,7 +144,7 @@ for(model in 1:length(WAA_re_model)) {
     waa_model$rep <- waa_model$report(waa_model$env$last.par.best)
     # Get sd report
     waa_model$sd_rep <- sdreport(waa_model, getJointPrecision = TRUE)
-    
+
     # save models in varaince parameterization loop
     # Differentiate models here
     if(Var_Param[n_varParam] == 0) waa_model$Var_Param = "Conditional"
@@ -154,6 +156,8 @@ for(model in 1:length(WAA_re_model)) {
     waa_model$Species = species_name[species]
 
     var_models[[n_varParam]] <- waa_model
+    
+    margAIC(waa_model$optim)
     
    } # end variance parameterization loop
     re_models <- c(var_models, re_models)
@@ -168,3 +172,26 @@ for(model in 1:length(WAA_re_model)) {
 # save models
 save(all_models, file = here("output", "2d3d_models.RData"))
 beepr::beep(4)
+
+# Quick model checking
+# Extract WAA random effects
+# WAA_re <- t(waa_model$env$parList()$ln_Y_at)
+# # Munge WAA for plotting
+# WAA_re <- reshape2::melt(WAA_re) 
+# WAA_re$value <- exp(WAA_re$value)
+# colnames(WAA_re) <- c("yrs", "ages", "vals")
+# WAA_re <- WAA_re %>% mutate(Type = "Random")
+# 
+# # Plot WAA re
+# ggplot(WAA_re, 
+#        aes(x = yrs, y = vals, group = 1)) +
+#   geom_line(alpha = 0.85) +
+#   facet_wrap(~ages, scales = "free") +
+#   theme_bw() +
+#   labs(x = "Year", y = "Weight") +
+#   theme(axis.title = element_text(size = 17),
+#         axis.text = element_text(size = 15),
+#         legend.title = element_text(size = 17),
+#         legend.text = element_text(size = 15),
+#         legend.position = "none")
+

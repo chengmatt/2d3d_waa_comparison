@@ -23,11 +23,11 @@ library(cowplot)
 load(here("output", "2d3d_models.RData")) # obj is called all_models
 
 # list species 
-species_name <- c("atkamack", "ebspollock", "hake")
+species_name <- c("atkamack", "ebspollock", "hake", "goapollock")
 n_species <- length(species_name)
 
 # Number of projection years
-n_proj_years <- 3
+n_proj_years <- 0
 
 # Get WAA Values ----------------------------------------------------------
 
@@ -78,10 +78,12 @@ for(model in 1:length(all_models)) {
   
 } # end model loop
 
+write.csv(WAA_re_df_all, here("output", "WAA_re_all.csv"))
+
 # Number of variance paramerzations
 Var_Param <- c("Conditional", "Marginal")
 
-pdf(here("figs", "waa_sd_comparison.pdf"), width = 14, height = 21)
+pdf(here("figs", "waa_sd_comparison.pdf"), width = 14, height = 16)
 for(species in 1:n_species) {
   for(var_param in 1:length(Var_Param)) {
     
@@ -105,21 +107,21 @@ for(species in 1:n_species) {
             legend.position = "top")
     
     # sd
-    sd_plot <- ggplot(df, aes(x = yrs, y = sd, color = factor(model), group = factor(model))) +
-      geom_line(alpha = 0.75, size = 1.6) +
-      theme_bw() +
-      facet_wrap(~ages, scales = "free_y") +
-      labs(x = "Year", y = "SD", color = "Ages",
-           title = "") +
-      theme(axis.title = element_text(size = 21),
-            axis.text = element_text(size = 18, color = "black"),
-            legend.title = element_text(size = 21),
-            legend.text = element_text(size = 18),
-            strip.text = element_text(size = 21), 
-            title = element_text(size = 21),
-            legend.position = "none")
+    # sd_plot <- ggplot(df, aes(x = yrs, y = sd, color = factor(model), group = factor(model))) +
+    #   geom_line(alpha = 0.75, size = 1.6) +
+    #   theme_bw() +
+    #   facet_wrap(~ages, scales = "free_y") +
+    #   labs(x = "Year", y = "SD", color = "Ages",
+    #        title = "") +
+    #   theme(axis.title = element_text(size = 21),
+    #         axis.text = element_text(size = 18, color = "black"),
+    #         legend.title = element_text(size = 21),
+    #         legend.text = element_text(size = 18),
+    #         strip.text = element_text(size = 21), 
+    #         title = element_text(size = 21),
+    #         legend.position = "none")
     
-    print(plot_grid(waa_plot, sd_plot, ncol = 1))
+    print(plot_grid(waa_plot, ncol = 1))
     
   } # end var_param loop
 } # end species loop
